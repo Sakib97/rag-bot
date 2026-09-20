@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple RAG over your PDFs</title>
+  <style>
+    :root {
+      --border: #e2e2e2;
+      --panel-bg: #f7f7f7;
+      --text-muted: #6b6b6b;
+      --accent: #2563eb;
+      --danger: #c0392b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px 64px;
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      color: #1a1a1a;
+      background: #ffffff;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin: 0 0 28px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #555;
+      margin: 0 0 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    input[type="file"] {
+      font-size: 0.9rem;
+    }
+
+    button {
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f0f0f0;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: #e6e6e6;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .status-box {
+      margin-top: 16px;
+      padding: 14px;
+      background: var(--panel-bg);
+      border-radius: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-muted);
+      min-height: 20px;
+    }
+
+    .status-box.error {
+      color: var(--danger);
+    }
+
+    .status-box.success {
+      color: #1a7a3c;
+    }
+
+    .ask-row {
+      margin-bottom: 12px;
+    }
+
+    .answer-box {
+      margin-top: 16px;
+      padding: 14px;
+      background: var(--panel-bg);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      min-height: 20px;
+    }
+
+    .answer-box .answer-text {
+      white-space: pre-wrap;
+    }
+
+    .sources {
+      margin-top: 14px;
+    }
+
+    .sources summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .source-item {
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+
+    .source-item .meta {
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #ccc;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+    }
+
+    .modal-overlay.hidden {
+      display: none;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 340px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-card h2 {
+      margin: 0 0 4px;
+      font-size: 1.3rem;
+      text-transform: none;
+      letter-spacing: normal;
+      color: #1a1a1a;
+    }
+
+    .modal-card .subtitle {
+      margin: 0 0 20px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .modal-field {
+      margin-bottom: 14px;
+    }
+
+    .modal-field label {
+      display: block;
+      font-size: 0.8rem;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .modal-field input {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .modal-card button[type="submit"] {
+      width: 100%;
+      margin-top: 6px;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .modal-card button[type="submit"]:hover:not(:disabled) {
+      background: #1d4fd1;
+    }
+
+    .modal-error {
+      margin-top: 12px;
+      min-height: 1.1em;
+      font-size: 0.85rem;
+      color: var(--danger);
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .page-header h1 {
+      margin: 0;
+    }
+
+    #logoutBtn {
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body class="modal-open">
+  <!-- Overlay defaults to visible (no "hidden" class) so there is no flash
+       of unlocked content while the login-check config fetch is in flight. -->
+  <div id="loginOverlay" class="modal-overlay">
+    <div class="modal-card">
+      <h2>Sign in</h2>
+      <p class="subtitle">Enter your credentials to use this app.</p>
+      <form id="loginForm" novalidate>
+        <div class="modal-field">
+          <label for="loginEmail">Email</label>
+          <input
+            type="email"
+            id="loginEmail"
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div class="modal-field">
+          <label for="loginPassword">Password</label>
+          <input
+            type="password"
+            id="loginPassword"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button type="submit" id="loginBtn">Sign in</button>
+        <div id="loginError" class="modal-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Simple RAG over your PDFs</h1>
+      <button id="logoutBtn" type="button">Logout</button>
+    </div>
+
+    <div class="card">
+      <h2>1. Ingest</h2>
+      <div class="row">
+        <input type="file" id="pdfFile" accept="application/pdf" />
+        <button id="uploadBtn">Upload &amp; index</button>
+      </div>
+      <div id="ingestStatus" class="status-box">No document ingested yet.</div>
+    </div>
+
+    <div class="card">
+      <h2>2. Ask</h2>
+      <div class="row ask-row">
+        <input
+          type="text"
+          id="questionInput"
+          placeholder="What does the document say about...?"
+        />
+      </div>
+      <button id="askBtn">Ask</button>
+      <div id="answerBox" class="answer-box"></div>
+    </div>
+  </div>
+
+  <script>
+    // ---- login gate ----
+    // The login path and the localStorage key both live in the server's
+    // .env (USER_LOGIN_PATH / USER_LOGIN_STORAGE_KEY) so they only have to
+    // be defined in one place; this fetches them instead of hardcoding
+    // duplicate strings here.
+    let configPromise = null;
+    const loadConfig = () => {
+      if (!configPromise) {
+        configPromise = fetch("/api/v1/users/config").then((res) => res.json());
+      }
+      return configPromise;
+    };
+
+    const loginOverlay = document.getElementById("loginOverlay");
+    const loginForm = document.getElementById("loginForm");
+    const loginEmail = document.getElementById("loginEmail");
+    const loginPassword = document.getElementById("loginPassword");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginError = document.getElementById("loginError");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    const showLoginModal = () => {
+      loginOverlay.classList.remove("hidden");
+      document.body.classList.add("modal-open");
+      loginEmail.focus();
+    };
+
+    const hideLoginModal = () => {
+      loginOverlay.classList.add("hidden");
+      document.body.classList.remove("modal-open");
+    };
+
+    // No close button, no backdrop-click handler, no Escape handler:
+    // the overlay only ever disappears after a successful login.
+    // The overlay is already visible by default in the markup (see the
+    // comment above <body>), so there is nothing to do here unless the
+    // user turns out to already be logged in.
+    loadConfig().then(({ loginStorageKey }) => {
+      if (localStorage.getItem(loginStorageKey) === "true") {
+        hideLoginModal();
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      // localStorage is already scoped to this site's origin, so clear()
+      // wipes every key this app (or anything else on the origin) has set.
+      localStorage.clear();
+
+      loginForm.reset();
+      loginError.textContent = "";
+      showLoginModal();
+    });
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
+
+      if (!email || !password) {
+        loginError.textContent = "Email and password are required.";
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginError.textContent = "";
+      loginBtn.innerHTML = '<span class="spinner"></span>Signing in...';
+
+      try {
+        const { loginPath, loginStorageKey } = await loadConfig();
+        const res = await fetch(loginPath, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Login failed");
+        }
+
+        if (data.success === true) {
+          localStorage.setItem(loginStorageKey, "true");
+          hideLoginModal();
+        } else {
+          loginError.textContent = "Invalid email or password.";
+        }
+      } catch (error) {
+        loginError.textContent = `Error: ${error.message}`;
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Sign in";
+      }
+    });
+
+    const uploadBtn = document.getElementById("uploadBtn");
+    const pdfFile = document.getElementById("pdfFile");
+    const ingestStatus = document.getElementById("ingestStatus");
+
+    const askBtn = document.getElementById("askBtn");
+    const questionInput = document.getElementById("questionInput");
+    const answerBox = document.getElementById("answerBox");
+
+    const setStatus = (el, message, variant) => {
+      el.textContent = message;
+      el.classList.remove("error", "success");
+      if (variant) el.classList.add(variant);
+    };
+
+    uploadBtn.addEventListener("click", async () => {
+      const file = pdfFile.files[0];
+
+      if (!file) {
+        setStatus(ingestStatus, "Please choose a PDF file first.", "error");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      uploadBtn.disabled = true;
+      setStatus(ingestStatus, "Uploading & indexing...");
+
+      try {
+        const res = await fetch("/api/v1/ingest/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Upload failed");
+        }
+
+        setStatus(
+          ingestStatus,
+          `Ingested "${data.documentName}" — ${data.totalChunks} chunk(s) indexed.\npdfId: ${data.pdfId}`,
+          "success",
+        );
+      } catch (error) {
+        setStatus(ingestStatus, `Error: ${error.message}`, "error");
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+
+    const renderAnswer = (data) => {
+      answerBox.innerHTML = "";
+
+      const answerText = document.createElement("div");
+      answerText.className = "answer-text";
+      answerText.textContent = data.answer;
+      answerBox.appendChild(answerText);
+
+      if (data.sources && data.sources.length > 0) {
+        const details = document.createElement("details");
+        details.className = "sources";
+
+        const summary = document.createElement("summary");
+        summary.textContent = `Sources (${data.sources.length})`;
+        details.appendChild(summary);
+
+        data.sources.forEach((source) => {
+          const item = document.createElement("div");
+          item.className = "source-item";
+
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const score =
+            typeof source.score === "number" ? source.score.toFixed(3) : "n/a";
+          meta.textContent = `${source.documentName} · chunk ${source.chunkIndex} · score ${score}`;
+          item.appendChild(meta);
+
+          const text = document.createElement("div");
+          text.textContent = source.text;
+          item.appendChild(text);
+
+          details.appendChild(item);
+        });
+
+        answerBox.appendChild(details);
+      }
+    };
+
+    const askQuestion = async () => {
+      const question = questionInput.value.trim();
+
+      if (!question) {
+        answerBox.textContent = "Please type a question first.";
+        return;
+      }
+
+      askBtn.disabled = true;
+      answerBox.innerHTML = '<span class="spinner"></span>Thinking...';
+
+      try {
+        const res = await fetch("/api/v1/question/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Failed to get answer");
+        }
+
+        renderAnswer(data);
+      } catch (error) {
+        answerBox.textContent = `Error: ${error.message}`;
+      } finally {
+        askBtn.disabled = false;
+      }
+    };
+
+    askBtn.addEventListener("click", askQuestion);
+    questionInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") askQuestion();
+    });
+  </script>
+</body>
+</html>
