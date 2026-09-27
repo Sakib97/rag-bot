@@ -18,3 +18,7 @@ npm-debug.log*
 # models-cache folder
 .models-cache
 .models-cache/*
+
+# test files
+/src/test
+/src/test/*
