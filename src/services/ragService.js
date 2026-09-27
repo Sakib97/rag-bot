@@ -1,11 +1,21 @@
-import PdfChunk from "../models/PdfChunk.js";
-import { generateEmbedding } from "./embeddingService.js";
+// import PdfChunk, { PdfChunkGem } from "../models/PdfChunk.js";
+import  { PdfChunkGem } from "../models/PdfChunk.js";
+// import { generateEmbedding } from "./embeddingService.js";
 import { extractTextFromPdf, splitIntoChunks } from "./pdfService.js";
 import { generateAnswer } from "./llmService.js";
+import { generateEmbeddingGemini } from "./apiEmbeddingService.js";
 
+
+// for MiniLM model
 const VECTOR_INDEX_NAME = process.env.VECTOR_INDEX_NAME;
 if (!VECTOR_INDEX_NAME) {
   throw new Error("VECTOR_INDEX_NAME is not set. Check your .env file.");
+}
+
+// for Gemini model
+const VECTOR_INDEX_NAME_GEM = process.env.VECTOR_INDEX_NAME_GEM;
+if (!VECTOR_INDEX_NAME_GEM) {
+  throw new Error("VECTOR_INDEX_NAME_GEM is not set. Check your .env file.");
 }
 
 export const ingestPDF = async (fileBuffer, documentName) => {
@@ -26,7 +36,8 @@ export const ingestPDF = async (fileBuffer, documentName) => {
   for (let i = 0; i < chunks.length; i++) {
     const chunkText = chunks[i];
 
-    const embedding = await generateEmbedding(chunkText);
+    // const embedding = await generateEmbedding(chunkText); // for MiniLM model
+    const embedding = await generateEmbeddingGemini(chunkText); // for Gemini model
 
     documents.push({
       pdfId,
@@ -38,7 +49,8 @@ export const ingestPDF = async (fileBuffer, documentName) => {
   }
 
   // 4. Store all chunks in MongoDB
-  const savedChunks = await PdfChunk.insertMany(documents);
+  // const savedChunks = await PdfChunk.insertMany(documents); // for MiniLM model
+  const savedChunks = await PdfChunkGem.insertMany(documents); // for Gemini model
 
   return {
     pdfId,
@@ -47,40 +59,67 @@ export const ingestPDF = async (fileBuffer, documentName) => {
   };
 };
 
-export const searchPDF = async (pdfId, query) => {
-  const chunks = await PdfChunk.find({ pdfId });
-  const embeddings = chunks.map((chunk) => chunk.embedding);
-  const searchResults = await searchVectors(embeddings, query);
-  return searchResults;
-};
+// export const searchPDF = async (pdfId, query) => {
+//   // const chunks = await PdfChunk.find({ pdfId }); // for MiniLM model
+//   const chunks = await PdfChunkGem.find({ pdfId }); // for Gemini model
+//   const embeddings = chunks.map((chunk) => chunk.embedding);
+//   const searchResults = await searchVectors(embeddings, query);
+//   return searchResults;
+// };
 
 // function to search for similar chunks from user query using vector search
 export const retrieveRelevantChunks = async (question, limit = 4) => {
   // 1. Convert the question into an embedding
-  const questionEmbedding = await generateEmbedding(question);
+  // const questionEmbedding = await generateEmbedding(question); // for MiniLM model
+  const questionEmbedding = await generateEmbeddingGemini(question); // for Gemini model
+
 
   // 2. Search MongoDB using vector similarity
-  const results = await PdfChunk.aggregate([
-    // This runs a multi-stage aggregation pipeline on the PdfChunk collection.
+  
+  // for MiniLM model
+  // const results = await PdfChunk.aggregate([
+  //   // This runs a multi-stage aggregation pipeline on the PdfChunk collection.
+  //   {
+  //     $vectorSearch: {
+  //       index: VECTOR_INDEX_NAME,
+  //       path: "embedding", // The field in the documents that contains the vector data to search against.
+  //       queryVector: questionEmbedding,
+  //       numCandidates: 100, // MongoDB first considers 100 candidate vectors internally before selecting the best matches.
+  //       limit, // The number of final results to return.
+  //     },
+  //   },
+  //   {
+  //     $project: {
+  //       //$project: This stage projects the fields to include in the output.
+  //       _id: 0, // Exclude the default MongoDB _id field from the output.
+  //       documentName: 1, // Include the documentName field.
+  //       chunkIndex: 1, // Include the chunkIndex field.
+  //       text: 1, // Include the text field.
+  //       score: { $meta: "vectorSearchScore" }, // Include the vector search score.
+  //       // Higher scores generally mean more similar matches.
+  //       // This is useful for ranking or debugging search quality.
+  //     },
+  //   },
+  // ]);
+
+  // for Gemini model
+  const results = await PdfChunkGem.aggregate([
     {
       $vectorSearch: {
-        index: VECTOR_INDEX_NAME,
-        path: "embedding", // The field in the documents that contains the vector data to search against.
+        index: VECTOR_INDEX_NAME_GEM,
+        path: "embedding",
         queryVector: questionEmbedding,
-        numCandidates: 100, // MongoDB first considers 100 candidate vectors internally before selecting the best matches.
-        limit, // The number of final results to return.
+        numCandidates: 100,
+        limit,
       },
     },
     {
       $project: {
-        //$project: This stage projects the fields to include in the output.
-        _id: 0, // Exclude the default MongoDB _id field from the output.
-        documentName: 1, // Include the documentName field.
-        chunkIndex: 1, // Include the chunkIndex field.
-        text: 1, // Include the text field.
-        score: { $meta: "vectorSearchScore" }, // Include the vector search score.
-        // Higher scores generally mean more similar matches.
-        // This is useful for ranking or debugging search quality.
+        _id: 0,
+        documentName: 1,
+        chunkIndex: 1,
+        text: 1,
+        score: { $meta: "vectorSearchScore" },
       },
     },
   ]);

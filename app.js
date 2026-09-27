@@ -9,7 +9,7 @@ import express from "express";
 import ingestRoutes from "./src/routes/ingestRoutes.js";
 import questionRoutes from "./src/routes/questionRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
-
+import pdfRoutes from "./src/routes/pdfRoutes.js";
 const app = express();
 
 // global middleware
@@ -29,7 +29,7 @@ app.get("/", (req, res) => {
 app.use("/api/v1/ingest", ingestRoutes);
 app.use("/api/v1/question", questionRoutes);
 app.use("/api/v1/users", userRoutes);
-
+app.use("/api/v1/pdf", pdfRoutes);
 
 // error handler middleware
 app.use((err, req, res, next) => {

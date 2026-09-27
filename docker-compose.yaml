@@ -1,0 +1,27 @@
+services:
+  app: # service name (can be any name)
+    build: . # where the dockerfile is in the relative path of this yaml file
+    image: rag-bot-image:v3 # custom image name
+    container_name: rag-bot-container # container name
+    ports:
+      - "3000:3000" # port mapping
+    env_file:
+      - .env # environment variables
+    # volumes:
+      # - models-cache:/app/.models-cache # persist downloaded embedding model across container restarts
+      # Above is a Named volume, not a bind mount. 
+      # models-cache:/app/.models-cache uses a 
+      # Docker-managed named volume (declared under the top-level volumes: key) rather than a 
+      # host path like ./.models-cache:/app/.models-cache.
+
+      # What this actually fixes: previously, 
+      # every docker compose up → down → up cycle re-downloaded 
+      # Xenova/all-MiniLM-L6-v2 from the Hugging Face Hub on the 
+      # first embedding request, since the container's filesystem (including .models-cache) 
+      # is discarded when the container is removed. 
+      # Now that directory is backed by a volume that outlives the container, 
+      # so only the very first run downloads the model — every subsequent up reuses it 
+      # from the volume, and getExtractor()'s "load once" behavior finally has a 
+      # persistent place to load from.
+# volumes:
+#   models-cache:

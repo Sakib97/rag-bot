@@ -300,7 +300,7 @@
 
   <div class="container">
     <div class="page-header">
-      <h1>Simple RAG over your PDFs</h1>
+      <h1>Simple RAG over PDFs</h1>
       <button id="logoutBtn" type="button">Logout</button>
     </div>
 
@@ -310,7 +310,7 @@
         <input type="file" id="pdfFile" accept="application/pdf" />
         <button id="uploadBtn">Upload &amp; index</button>
       </div>
-      <div id="ingestStatus" class="status-box">No document ingested yet.</div>
+      <div id="ingestStatus" class="status-box">Loading documents...</div>
     </div>
 
     <div class="card">
@@ -438,6 +438,36 @@
       if (variant) el.classList.add(variant);
     };
 
+    // Renders the ingested-document list into ingestStatus, which doubles
+    // as both the "what's already in the DB" display and the upload
+    // action's transient feedback (uploading/error/success) below.
+    const loadDocumentNames = async () => {
+      try {
+        const res = await fetch("/api/v1/pdf/getUniqueDocNames");
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || data.message || "Failed to load documents");
+        }
+
+        const names = data.documentNames || [];
+
+        if (names.length === 0) {
+          setStatus(ingestStatus, "No document ingested yet.");
+        } else {
+          setStatus(
+            ingestStatus,
+            `Ingested documents (${names.length}):\n` +
+              names.map((name) => `• ${name}`).join("\n"),
+          );
+        }
+      } catch (error) {
+        setStatus(ingestStatus, `Error loading documents: ${error.message}`, "error");
+      }
+    };
+
+    loadDocumentNames();
+
     uploadBtn.addEventListener("click", async () => {
       const file = pdfFile.files[0];
 
@@ -469,6 +499,10 @@
           `Ingested "${data.documentName}" — ${data.totalChunks} chunk(s) indexed.\npdfId: ${data.pdfId}`,
           "success",
         );
+
+        // Briefly shows the confirmation above, then refreshes to the full
+        // document list so the newly ingested file appears in it.
+        loadDocumentNames();
       } catch (error) {
         setStatus(ingestStatus, `Error: ${error.message}`, "error");
       } finally {

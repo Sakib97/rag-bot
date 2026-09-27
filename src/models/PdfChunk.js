@@ -41,4 +41,6 @@ const pdfChunkSchema = new mongoose.Schema(
 );
 
 const PdfChunk = mongoose.model("PdfChunk", pdfChunkSchema); // mongo will create a collection named pdfchunks
+export const PdfChunkGem = mongoose.model("PdfChunkGem", pdfChunkSchema); // mongo will create a collection named pdfchunkgems
+
 export default PdfChunk;
