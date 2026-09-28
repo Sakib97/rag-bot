@@ -12,7 +12,8 @@ const PORT = process.env.PORT || 3000;
 const start = async () => {
   await connectDB();
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, "0.0.0.0", () => { // 0.0.0.0 is the binding IP address. 
+  // Binding to "0.0.0.0" tells the server to listen on all available network interfaces.
     console.log(`Server is running on http://localhost:${PORT}`);
   });
 
