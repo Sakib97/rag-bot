@@ -7,8 +7,6 @@ A small Retrieval-Augmented Generation (RAG) service built with Node.js, Express
 - [Features](#features)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
-- [Getting Started](#getting-started)
-- [Running with Docker](#running-with-docker)
 - [API Reference](#api-reference)
 
 ## Features
